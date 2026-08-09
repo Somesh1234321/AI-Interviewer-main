@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +10,9 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # Render injects env vars as plain strings (e.g. CORS_ORIGINS).
+        # Disable JSON decoding so comma-separated string lists work.
+        enable_decoding=False,
     )
 
     app_name: str = "AI Interview Agent"
@@ -27,21 +31,32 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
+    def parse_cors_origins(cls, value: Any) -> list[str]:
+        # Handle a plain string that may be JSON, comma-separated, or a list.
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            stripped = value.strip()
+            if not stripped:
+                return ["http://localhost:3000"]
+            if stripped.startswith("["):
+                import json
+
+                try:
+                    parsed = json.loads(stripped)
+                    if isinstance(parsed, list):
+                        return [str(o).strip() for o in parsed if str(o).strip()]
+                except Exception:  # noqa: BLE001 - fall through to CSV
+                    pass
+            return [
+                origin.strip() for origin in stripped.split(",") if origin.strip()
+            ]
+        if isinstance(value, list):
+            return [str(o).strip() for o in value if str(o).strip()]
         return value
 
     @field_validator("api_port", mode="before")
     @classmethod
     def use_render_port(cls, value):
-        """Prefer the platform-provided PORT (Render, Heroku, etc.).
-
-        Render injects a ``PORT`` environment variable at runtime. If present,
-        it overrides any configured or default port so the app binds to the
-        expected socket and doesn't crash at startup with an
-        address-in-use / invalid-port error.
-        """
+        """Prefer the platform-provided PORT (Render, Heroku, etc.)."""
         render_port = os.environ.get("PORT")
         if render_port:
             try:

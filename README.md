@@ -62,22 +62,28 @@ The backend runs at [http://localhost:8000](http://localhost:8000).
 
 ## Deploying the Backend to Render
 
-The backend is provided with Render-ready configuration. The key fix is in
-`app/config.py`: the app now reads the platform-injected `PORT` environment
-variable, so it binds to whatever port Render assigns (no more
-`address already in use` startup crashes).
+The backend is provided with Render-ready configuration. Key fixes in
+`app/config.py`:
+
+- The app reads the platform-injected `PORT` environment variable, so it
+  binds to whatever port Render assigns (no more `address already in use`
+  startup crashes).
+- `CORS_ORIGINS` is parsed as a **comma-separated string** (or a JSON list),
+  so setting it via Render's env-var UI no longer crashes the app at startup.
+  This was a common cause of deployment failures.
 
 ### Option A — Render Blueprint (recommended, auto-deploys everything)
 
 1. Push this repository to GitHub.
 2. In Render, go to **New → Blueprint** and connect your repo.
-3. Render picks up `backend/render.yaml`, creates a web service
-   (`ai-interviewer-backend`), installs deps, and serves the API.
+3. Render picks up **`render.yaml` at the repository ROOT** (it is NOT read
+   from `backend/`), creates a web service (`ai-interviewer-backend`),
+   installs deps, builds from `backend/` (via `rootDir`), and serves the API.
 4. Fill in the required environment variables (Render prompts for them):
    - `OPENAI_API_KEY` — optional. Leave blank to use the built-in
      rule-based fallback (no AI questions).
    - `CORS_ORIGINS` — your deployed frontend URL(s), comma-separated
-     (e.g. `https://your-app.vercel.app`).
+     (e.g. `https://your-app.vercel.app,https://www.your-app.vercel.app`).
 
 ### Option B — Manual web service
 
