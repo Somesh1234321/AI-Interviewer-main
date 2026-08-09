@@ -1,3 +1,5 @@
+import os
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,5 +32,24 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
+    @field_validator("api_port", mode="before")
+    @classmethod
+    def use_render_port(cls, value):
+        """Prefer the platform-provided PORT (Render, Heroku, etc.).
+
+        Render injects a ``PORT`` environment variable at runtime. If present,
+        it overrides any configured or default port so the app binds to the
+        expected socket and doesn't crash at startup with an
+        address-in-use / invalid-port error.
+        """
+        render_port = os.environ.get("PORT")
+        if render_port:
+            try:
+                return int(render_port)
+            except ValueError:
+                return value
+        return value
+
 
 settings = Settings()
+
